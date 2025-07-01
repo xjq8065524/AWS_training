@@ -1,0 +1,18 @@
+# © The Chancellor, Masters and Scholars of The University of Oxford. All rights reserved.
+
+version: 1.0
+runtime: python311
+build:
+  commands:
+    pre-build:
+      - python3 -m pip install -r requirements.txt
+    build:
+      - python3 -m pip install -r requirements.txt
+    post-build:
+      - python3 -m pip install -r requirements.txt
+run:
+  pre-run:
+    - python3 -m pip install -r requirements.txt
+  command: python3 -m gunicorn --bind 0.0.0.0:8080 app:app
+  network:
+    port: 8080

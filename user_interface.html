@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Workshop</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        #viewer-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            margin-bottom: 40px;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .code-section {
+            width: 800px;
+            margin-bottom: 40px;
+        }
+        .code-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .code-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .code-box {
+            flex: 1;
+            background: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .code-header {
+            background: #2d2d2d;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .code-header span {
+            color: #fff;
+            font-family: monospace;
+        }
+        .run-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        .run-button:hover {
+            background: #45a049;
+        }
+        .code-editor {
+            flex: 1;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 15px;
+            border: none;
+            resize: vertical;
+            outline: none;
+            white-space: pre;
+            overflow-x: auto;
+            min-height: 200px;
+        }
+        .output-box {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            color: #d4d4d4;
+            font-family: 'Consolas', monospace;
+            min-height: 50px;
+            display: none;
+        }
+        .config-input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #2d2d2d;
+            color: #fff;
+        }
+        .config-input:read-only {
+            background-color: #3d3d3d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewer-container">
+        <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+        <script>
+            // Scene setup
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+            
+            const container = document.getElementById('viewer-container');
+            const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            // Add a second directional light from the opposite side
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight2.position.set(-1, 1, -1);
+            scene.add(directionalLight2);
+
+            // Add orbit controls
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 0.5;
+            controls.maxDistance = 5;
+            controls.target.set(0, 0, 0);
+
+            // Position camera
+            camera.position.set(0, 0.5, 1);
+            camera.lookAt(0, 0, 0);
+
+            // Add a grid helper
+            const gridHelper = new THREE.GridHelper(2, 10);
+            scene.add(gridHelper);
+
+            // Load the model
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                '/duck.glb',
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(10, 10, 10);
+                    scene.add(model);
+                    
+                    // Center the model
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    
+                    // Move to floor level
+                    model.position.y = 0;
+                },
+                function (xhr) {
+                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+                },
+                function (error) {
+                    console.error('An error occurred while loading the model:', error);
+                }
+            );
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            });
+        </script>
+    </div>
+
+    <div class="code-section">
+        <h2>1. Create S3 Bucket</h2>
+        <div class="code-container">
+            <div class="code-box">
+                <div class="code-header">
+                    <span>Python (boto3)</span>
+                    <button class="run-button" onclick="runPythonCode('create-bucket')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="create-bucket-python-code"># Initialize S3 and STS clients
+s3 = boto3.client('s3')
+sts = boto3.client('sts')
+
+# Get the current AWS account ID
+account_id = sts.get_caller_identity()['Account']
+
+# Create a unique bucket name using the account ID
+bucket_name = f'workshop-bucket-{account_id}'
+
+# Get the current AWS region
+region = boto3.Session().region_name
+
+# Create the S3 bucket in the current region
+s3.create_bucket(
+    Bucket=bucket_name,
+    CreateBucketConfiguration={
+        'LocationConstraint': region
+    }
+)</textarea>
+                <div class="output-box" id="create-bucket-python-output"></div>
+            </div>
+            <div class="code-box">
+                <div class="code-header">
+                    <span>AWS CLI</span>
+                    <button class="run-button" onclick="runCliCode('create-bucket')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="create-bucket-cli-code"># Get the current AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create a unique bucket name using the account ID
+BUCKET_NAME="workshop-bucket-cli-${ACCOUNT_ID}"
+
+# Get the current AWS region
+REGION=$(aws configure get region)
+if [ -z "$REGION" ]; then
+  REGION=$AWS_REGION
+fi
+
+# Create the S3 bucket in the current region and capture output
+aws s3api create-bucket \
+    --bucket $BUCKET_NAME \
+    --create-bucket-configuration LocationConstraint=$REGION</textarea>
+                <div class="output-box" id="create-bucket-cli-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="code-section">
+        <h2>2. Upload duck.glb to S3</h2>
+        <div class="code-container">
+            <div class="code-box">
+                <div class="code-header">
+                    <span>Python (boto3)</span>
+                    <button class="run-button" onclick="runPythonCode('upload-file')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="upload-file-python-code"># Set the filename you want to upload
+filename = 'duck.glb'
+
+# Initialize S3 and STS clients
+s3 = boto3.client('s3')
+sts = boto3.client('sts')
+
+# Get the current AWS account ID
+account_id = sts.get_caller_identity()['Account']
+
+# Create a unique bucket name using the account ID
+bucket_name = f'workshop-bucket-{account_id}'
+
+# Upload the file to S3 with the correct content type
+s3.upload_file(
+    filename,
+    bucket_name,
+    filename,
+    ExtraArgs={'ContentType': 'model/gltf-binary'}
+)</textarea>
+                <div class="output-box" id="upload-file-python-output"></div>
+            </div>
+            <div class="code-box">
+                <div class="code-header">
+                    <span>AWS CLI</span>
+                    <button class="run-button" onclick="runCliCode('upload-file')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="upload-file-cli-code"># Set the filename you want to upload
+FILENAME="duck.glb"
+
+# Get the current AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create a unique bucket name using the account ID
+BUCKET_NAME="workshop-bucket-cli-${ACCOUNT_ID}"
+
+# Upload the file to S3 with the correct content type and capture output
+aws s3 cp $FILENAME \
+    s3://$BUCKET_NAME/$FILENAME \
+    --content-type "model/gltf-binary"</textarea>
+                <div class="output-box" id="upload-file-cli-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="code-section">
+        <h2>3. Download oxford.glb from S3</h2>
+        <div class="code-container">
+            <div class="code-box">
+                <div class="code-header">
+                    <span>Python (boto3)</span>
+                    <button class="run-button" onclick="runPythonCode('download-file')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="download-file-python-code"># Set the filename you want to download from S3
+filename = 'oxford.glb'
+
+# Initialize S3 and STS clients
+s3 = boto3.client('s3')
+sts = boto3.client('sts')
+
+# Get the current AWS account ID
+account_id = sts.get_caller_identity()['Account']
+
+# Create a unique bucket name using the account ID
+bucket_name = f'workshop-bucket-{account_id}'
+
+# Download the file from S3
+s3.download_file(
+    bucket_name,
+    filename,
+    'downloaded.glb'
+)</textarea>
+                <div class="output-box" id="download-file-python-output"></div>
+            </div>
+            <div class="code-box">
+                <div class="code-header">
+                    <span>AWS CLI</span>
+                    <button class="run-button" onclick="runCliCode('download-file')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="download-file-cli-code"># Set the filename you want to download from S3
+FILENAME="oxford.glb"
+
+# Get the current AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create a unique bucket name using the account ID
+BUCKET_NAME="workshop-bucket-cli-${ACCOUNT_ID}"
+
+# Download the file from S3 and capture output
+aws s3 cp \
+    s3://$BUCKET_NAME/$FILENAME \
+    downloaded.glb</textarea>
+                <div class="output-box" id="download-file-cli-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="code-section">
+        <h2>4. Clean Up (Delete Bucket)</h2>
+        <div class="code-container">
+            <div class="code-box">
+                <div class="code-header">
+                    <span>Python (boto3)</span>
+                    <button class="run-button" onclick="runPythonCode('delete-bucket')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="delete-bucket-python-code"># Initialize S3 clients
+s3 = boto3.client('s3')
+s3_resource = boto3.resource('s3')
+sts = boto3.client('sts')
+
+# Get the current AWS account ID
+account_id = sts.get_caller_identity()['Account']
+
+# Create a unique bucket name using the account ID
+bucket_name = f'workshop-bucket-{account_id}'
+
+# Get the bucket resource
+bucket = s3_resource.Bucket(bucket_name)
+
+# Delete all objects in the bucket
+bucket.objects.all().delete()
+
+# Delete the empty bucket
+s3.delete_bucket(Bucket=bucket_name)</textarea>
+                <div class="output-box" id="delete-bucket-python-output"></div>
+            </div>
+            <div class="code-box">
+                <div class="code-header">
+                    <span>AWS CLI</span>
+                    <button class="run-button" onclick="runCliCode('delete-bucket')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="delete-bucket-cli-code"># Get the current AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+# Create a unique bucket name using the account ID
+BUCKET_NAME="workshop-bucket-cli-${ACCOUNT_ID}"
+
+# Delete all objects in the bucket and capture output
+aws s3 rm s3://$BUCKET_NAME --recursive
+
+# Delete the empty bucket and capture output
+aws s3api delete-bucket --bucket $BUCKET_NAME</textarea>
+                <div class="output-box" id="delete-bucket-cli-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="code-section">
+        <h2>5. Create EC2 Instance</h2>
+        <div class="code-container">
+            <div class="code-box">
+                <div class="code-header">
+                    <span>Python (boto3)</span>
+                    <button class="run-button" onclick="runPythonCode('create-ec2')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="create-ec2-python-code"># Initialize EC2 client
+ec2 = boto3.client('ec2')
+
+# Set instance configuration
+instance_type = 't2.micro'  # Free tier eligible
+key_name = 'your-key-name'  # Replace with your SSH key name
+instance_name = 'workshop-instance'
+
+# Get the latest Amazon Linux 2 AMI ID
+response = ec2.describe_images(
+    Owners=['amazon'],
+    Filters=[
+        {
+            'Name': 'name',
+            'Values': ['amzn2-ami-hvm-*-x86_64-gp2']
+        },
+        {
+            'Name': 'state',
+            'Values': ['available']
+        }
+    ]
+)
+ami_id = sorted(response['Images'], key=lambda x: x['CreationDate'], reverse=True)[0]['ImageId']
+
+# Create EC2 instance
+response = ec2.run_instances(
+    ImageId=ami_id,
+    InstanceType=instance_type,
+    KeyName=key_name,
+    MinCount=1,
+    MaxCount=1,
+    TagSpecifications=[
+        {
+            'ResourceType': 'instance',
+            'Tags': [
+                {
+                    'Key': 'Name',
+                    'Value': instance_name
+                }
+            ]
+        }
+    ]
+)
+
+# Get the instance ID
+instance_id = response['Instances'][0]['InstanceId']
+
+# Wait for the instance to be running
+ec2.get_waiter('instance_running').wait(InstanceIds=[instance_id])
+
+# Get the public IP address
+instance = ec2.describe_instances(InstanceIds=[instance_id])
+public_ip = instance['Reservations'][0]['Instances'][0]['PublicIpAddress']
+
+print(f"Instance {instance_id} is running with public IP: {public_ip}")</textarea>
+                <div class="output-box" id="create-ec2-python-output"></div>
+            </div>
+            <div class="code-box">
+                <div class="code-header">
+                    <span>AWS CLI</span>
+                    <button class="run-button" onclick="runCliCode('create-ec2')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="create-ec2-cli-code"># Set instance configuration
+INSTANCE_TYPE="t2.micro"  # Free tier eligible
+KEY_NAME="your-key-name"  # Replace with your SSH key name
+INSTANCE_NAME="workshop-instance"
+
+# Get the latest Amazon Linux 2 AMI ID
+AMI_ID=$(aws ec2 describe-images \
+    --owners amazon \
+    --filters "Name=name,Values=amzn2-ami-hvm-*-x86_64-gp2" "Name=state,Values=available" \
+    --query 'sort_by(Images, &CreationDate)[-1].[ImageId]' \
+    --output text)
+
+# Create EC2 instance and capture output
+INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id $AMI_ID \
+    --instance-type $INSTANCE_TYPE \
+    --key-name $KEY_NAME \
+    --min-count 1 \
+    --max-count 1 \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$INSTANCE_NAME}]" \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+
+# Wait for the instance to be running
+aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+# Get the public IP address
+PUBLIC_IP=$(aws ec2 describe-instances \
+    --instance-ids $INSTANCE_ID \
+    --query 'Reservations[0].Instances[0].PublicIpAddress' \
+    --output text)
+
+echo "Instance $INSTANCE_ID is running with public IP: $PUBLIC_IP"</textarea>
+                <div class="output-box" id="create-ec2-cli-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="code-section">
+        <h2>6. Delete EC2 Instance</h2>
+        <div class="code-container">
+            <div class="code-box">
+                <div class="code-header">
+                    <span>Python (boto3)</span>
+                    <button class="run-button" onclick="runPythonCode('delete-ec2')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="delete-ec2-python-code"># Initialize EC2 client
+ec2 = boto3.client('ec2')
+
+# Set instance name (must match the name used in create-ec2)
+instance_name = 'workshop-instance'
+
+# Find the instance ID by name
+response = ec2.describe_instances(
+    Filters=[
+        {
+            'Name': 'tag:Name',
+            'Values': [instance_name]
+        }
+    ]
+)
+
+if not response['Reservations']:
+    print(f"No instance found with name: {instance_name}")
+else:
+    instance_id = response['Reservations'][0]['Instances'][0]['InstanceId']
+    
+    # Terminate the instance
+    ec2.terminate_instances(InstanceIds=[instance_id])
+    
+    # Wait for the instance to be terminated
+    ec2.get_waiter('instance_terminated').wait(InstanceIds=[instance_id])
+    
+    print(f"Instance {instance_id} has been terminated")</textarea>
+                <div class="output-box" id="delete-ec2-python-output"></div>
+            </div>
+            <div class="code-box">
+                <div class="code-header">
+                    <span>AWS CLI</span>
+                    <button class="run-button" onclick="runCliCode('delete-ec2')">RUN</button>
+                </div>
+                <textarea class="code-editor" id="delete-ec2-cli-code"># Set instance name (must match the name used in create-ec2)
+INSTANCE_NAME="workshop-instance"
+
+# Find the instance ID by name
+INSTANCE_ID=$(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=$INSTANCE_NAME" \
+    --query 'Reservations[0].Instances[0].InstanceId' \
+    --output text)
+
+if [ -z "$INSTANCE_ID" ]; then
+    echo "No instance found with name: $INSTANCE_NAME"
+else
+    # Terminate the instance
+    aws ec2 terminate-instances --instance-ids $INSTANCE_ID
+    
+    # Wait for the instance to be terminated
+    aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+    
+    echo "Instance $INSTANCE_ID has been terminated"
+fi</textarea>
+                <div class="output-box" id="delete-ec2-cli-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBucketName = null;
+
+        async function runPythonCode(operation) {
+            const outputBox = document.getElementById(`${operation}-python-output`);
+            const codeEditor = document.getElementById(`${operation}-python-code`);
+            outputBox.style.display = 'block';
+            outputBox.textContent = 'Running...';
+
+            try {
+                const response = await fetch('/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code: codeEditor.value })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    outputBox.textContent = result.output || 'Operation completed successfully!';
+                    if (operation === 'download-file') {
+                        // Update the model in the viewer after successful download
+                        updateModel('downloaded.glb');
+                    }
+                } else {
+                    outputBox.textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                outputBox.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        function updateModel(filename) {
+            // Clear existing model
+            scene.children.forEach(child => {
+                if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
+                    scene.remove(child);
+                }
+            });
+
+            // Load new model
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                `/${filename}`,
+                function (gltf) {
+                    const model = gltf.scene;
+                    model.scale.set(10, 10, 10);
+                    scene.add(model);
+                    
+                    // Center the model
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    model.position.sub(center);
+                    
+                    // Move to floor level
+                    model.position.y = 0;
+                },
+                function (xhr) {
+                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+                },
+                function (error) {
+                    console.error('An error occurred while loading the model:', error);
+                }
+            );
+        }
+
+        async function runCliCode(operation) {
+            const outputBox = document.getElementById(`${operation}-cli-output`);
+            const codeEditor = document.getElementById(`${operation}-cli-code`);
+            outputBox.style.display = 'block';
+            outputBox.textContent = 'Running...';
+
+            try {
+                const response = await fetch('/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code: codeEditor.value, is_cli: true })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    outputBox.textContent = result.output || 'Operation completed successfully!';
+                    if (operation === 'download-file') {
+                        // Update the model in the viewer after successful download
+                        updateModel('downloaded.glb');
+                    }
+                } else {
+                    outputBox.textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                outputBox.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html> 
