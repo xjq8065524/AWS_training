@@ -35,3 +35,14 @@ def execute():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+@app.route("/hello_api")
+def hello_api():
+    return {
+        "name": "Wrinkle Five Star",
+        "species": "Duck",
+        "breed": "American Pekin",
+        "hatching_date": "2020-09-09",
+        "sex": "Male"
+    }
+
